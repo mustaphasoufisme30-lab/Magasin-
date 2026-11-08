@@ -1,0 +1,6 @@
+{
+  "name": "Mahfoud Digital Products",
+  "description": "Boutique officielle de produits numériques : applications Android, ebooks, PDF interactifs, outils de programmation et ressources éducatives en téléchargement immédiat.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
