@@ -1,0 +1,153 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Un produit numérique officiel du catalogue Mahfoud Digital Products.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifiant unique du produit",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "slug": {
+          "type": "string",
+          "description": "Identifiant URL propre du produit",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "name": {
+          "type": "string",
+          "description": "Nom du produit numérique",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "category": {
+          "type": "string",
+          "description": "Identifiant de la catégorie du produit",
+          "enum": ["applications", "ebooks", "pdf", "programmation", "education", "outils"],
+          "maxLength": 40
+        },
+        "categoryLabel": {
+          "type": "string",
+          "description": "Libellé lisible de la catégorie",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "price": {
+          "type": "number",
+          "description": "Prix numérique du produit"
+        },
+        "currency": {
+          "type": "string",
+          "description": "Devise du prix",
+          "enum": ["USD", "EUR", "GBP", "CAD", "MAD", "DZD"],
+          "maxLength": 10
+        },
+        "formattedPrice": {
+          "type": "string",
+          "description": "Prix formaté avec symbole monétaire",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "payhipUrl": {
+          "type": "string",
+          "description": "Lien officiel d'achat Payhip",
+          "minLength": 8,
+          "maxLength": 500
+        },
+        "image": {
+          "type": "string",
+          "description": "Chemin, URL ou Data URL compressée de la photo du produit",
+          "maxLength": 900000
+        },
+        "imageAlt": {
+          "type": "string",
+          "description": "Texte alternatif de la photo du produit",
+          "minLength": 1,
+          "maxLength": 250
+        },
+        "shortDescription": {
+          "type": "string",
+          "description": "Description courte du produit",
+          "maxLength": 600
+        },
+        "fullDescription": {
+          "type": "array",
+          "description": "Paragraphes de la description complète du produit"
+        },
+        "features": {
+          "type": "array",
+          "description": "Liste des caractéristiques principales du produit"
+        },
+        "format": {
+          "type": "string",
+          "description": "Format du fichier numérique",
+          "maxLength": 200
+        },
+        "compatibility": {
+          "type": "array",
+          "description": "Liste des appareils et systèmes compatibles"
+        },
+        "popular": {
+          "type": "boolean",
+          "description": "Indique si le produit est mis en avant"
+        },
+        "visible": {
+          "type": "boolean",
+          "description": "Indique si le produit est visible dans la boutique publique"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID Firebase de l'administrateur propriétaire",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur de création"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur de dernière modification"
+        }
+      },
+      "required": [
+        "id",
+        "slug",
+        "name",
+        "category",
+        "categoryLabel",
+        "price",
+        "currency",
+        "formattedPrice",
+        "payhipUrl",
+        "image",
+        "imageAlt",
+        "shortDescription",
+        "fullDescription",
+        "features",
+        "format",
+        "compatibility",
+        "popular",
+        "visible",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": {
+        "$ref": "#/entities/Product"
+      },
+      "description": "Collection principale des produits numériques de Mahfoud Digital Products."
+    }
+  }
+}

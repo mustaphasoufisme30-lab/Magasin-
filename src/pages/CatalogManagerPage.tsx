@@ -1,4 +1,5 @@
 import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { User } from 'firebase/auth';
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -8,7 +9,6 @@ import {
   EyeOff,
   FileText,
   ImagePlus,
-  KeyRound,
   Lock,
   LogOut,
   Plus,
@@ -26,18 +26,18 @@ import {
   processUploadedProductPhoto,
   ProductFormInput,
 } from '../hooks/useCatalog';
+import { ADMIN_EMAIL, signInAsOwner, signOutOwner } from '../lib/firebase';
 import { PageRoute } from '../components/Navbar';
-
-const AUTH_SESSION_KEY = 'mahfoud_manager_unlocked_v1';
-const OWNER_CODE_STORAGE_KEY = 'mahfoud_owner_access_code_v1';
-const DEFAULT_OWNER_CODE = 'MAHFOUD2026';
 
 interface CatalogManagerPageProps {
   products: DigitalProduct[];
-  onAddProduct: (input: ProductFormInput) => DigitalProduct;
-  onUpdateProduct: (id: string, input: ProductFormInput) => void;
-  onToggleVisibility: (id: string) => void;
-  onDeleteProduct: (id: string) => void;
+  currentUser: User | null;
+  isAuthReady: boolean;
+  isOwnerAdmin: boolean;
+  onAddProduct: (input: ProductFormInput) => Promise<DigitalProduct>;
+  onUpdateProduct: (id: string, input: ProductFormInput) => Promise<void>;
+  onToggleVisibility: (id: string) => Promise<void>;
+  onDeleteProduct: (id: string) => Promise<void>;
   onNavigate: (page: PageRoute) => void;
   onSelectProduct: (slug: string) => void;
 }
@@ -59,6 +59,9 @@ const EMPTY_FORM: ProductFormInput = {
 
 export function CatalogManagerPage({
   products,
+  currentUser,
+  isAuthReady,
+  isOwnerAdmin,
   onAddProduct,
   onUpdateProduct,
   onToggleVisibility,
@@ -66,23 +69,14 @@ export function CatalogManagerPage({
   onNavigate,
   onSelectProduct,
 }: CatalogManagerPageProps) {
-  const [isUnlocked, setIsUnlocked] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    return window.sessionStorage.getItem(AUTH_SESSION_KEY) === 'true';
-  });
-
-  const [accessCodeInput, setAccessCodeInput] = useState('');
   const [authError, setAuthError] = useState('');
-
-  // Optional owner code change modal state
-  const [showChangeCode, setShowChangeCode] = useState(false);
-  const [newOwnerCode, setNewOwnerCode] = useState('');
-  const [codeSavedMessage, setCodeSavedMessage] = useState('');
+  const [signingIn, setSigningIn] = useState(false);
 
   // Form state (null = list mode, 'new' = adding, string = editing product id)
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [form, setForm] = useState<ProductFormInput>(EMPTY_FORM);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState('');
   const [feedbackBanner, setFeedbackBanner] = useState('');
 
@@ -92,45 +86,30 @@ export function CatalogManagerPage({
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const getExpectedCode = () => {
-    if (typeof window === 'undefined') return DEFAULT_OWNER_CODE;
-    return window.localStorage.getItem(OWNER_CODE_STORAGE_KEY) || DEFAULT_OWNER_CODE;
-  };
-
-  const handleUnlock = (e: FormEvent) => {
-    e.preventDefault();
-    const expected = getExpectedCode();
-    if (accessCodeInput.trim() === expected) {
-      setIsUnlocked(true);
-      setAuthError('');
-      setAccessCodeInput('');
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.setItem(AUTH_SESSION_KEY, 'true');
+  const handleGoogleSignIn = async () => {
+    setSigningIn(true);
+    setAuthError('');
+    try {
+      const credential = await signInAsOwner();
+      if (credential.user.email !== ADMIN_EMAIL) {
+        setAuthError(
+          `Accès refusé : le compte ${credential.user.email} n’est pas le compte propriétaire autorisé.`
+        );
       }
-    } else {
-      setAuthError('Code d’accès incorrect. Veuillez réessayer.');
+    } catch (err) {
+      setAuthError(
+        err instanceof Error
+          ? err.message
+          : 'Impossible de se connecter avec Google.'
+      );
+    } finally {
+      setSigningIn(false);
     }
   };
 
-  const handleLock = () => {
-    setIsUnlocked(false);
+  const handleSignOut = async () => {
     setEditingId(null);
-    if (typeof window !== 'undefined') {
-      window.sessionStorage.removeItem(AUTH_SESSION_KEY);
-    }
-  };
-
-  const handleSaveNewCode = (e: FormEvent) => {
-    e.preventDefault();
-    const trimmed = newOwnerCode.trim();
-    if (trimmed.length < 4) return;
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(OWNER_CODE_STORAGE_KEY, trimmed);
-    }
-    setNewOwnerCode('');
-    setShowChangeCode(false);
-    setCodeSavedMessage('Votre nouveau code d’accès propriétaire a été enregistré.');
-    setTimeout(() => setCodeSavedMessage(''), 4000);
+    await signOutOwner();
   };
 
   const startAddingProduct = () => {
@@ -180,7 +159,7 @@ export function CatalogManagerPage({
     }
   };
 
-  const handleSubmitForm = (e: FormEvent) => {
+  const handleSubmitForm = async (e: FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -197,75 +176,92 @@ export function CatalogManagerPage({
       return;
     }
 
-    if (editingId === 'new') {
-      const created = onAddProduct(form);
-      setFeedbackBanner(
-        `Le produit « ${created.name} » a été ajouté au catalogue (${
-          created.visible ? 'Visible en boutique' : 'Masqué'
-        }).`
-      );
-    } else if (editingId) {
-      onUpdateProduct(editingId, form);
-      setFeedbackBanner(`Les modifications sur « ${form.name.trim()} » ont été enregistrées.`);
-    }
+    setSaving(true);
+    try {
+      if (editingId === 'new') {
+        const created = await onAddProduct(form);
+        setFeedbackBanner(
+          `Le produit « ${created.name} » a été enregistré dans Firebase Firestore (${
+            created.visible ? 'Visible en boutique' : 'Masqué'
+          }).`
+        );
+      } else if (editingId) {
+        await onUpdateProduct(editingId, form);
+        setFeedbackBanner(
+          `Les modifications sur « ${form.name.trim()} » ont été enregistrées dans Firebase Firestore.`
+        );
+      }
 
-    setEditingId(null);
-    setTimeout(() => setFeedbackBanner(''), 5000);
+      setEditingId(null);
+      setTimeout(() => setFeedbackBanner(''), 5000);
+    } catch (err) {
+      setFormError(
+        err instanceof Error
+          ? err.message
+          : 'Erreur lors de l’enregistrement dans Firebase.'
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
-  // LOCKED VIEW: Protected Owner Gate
-  if (!isUnlocked) {
+  if (!isAuthReady) {
     return (
-      <div className="max-w-[460px] mx-auto px-4 sm:px-6 py-14 sm:py-20">
+      <div className="max-w-[460px] mx-auto px-4 sm:px-6 py-16 text-center text-sm text-slate-600">
+        Vérification de la connexion Firebase...
+      </div>
+    );
+  }
+
+  // LOCKED VIEW: Protected Owner Authentication via Firebase Google Login
+  if (!isOwnerAdmin) {
+    return (
+      <div className="max-w-[480px] mx-auto px-4 sm:px-6 py-14 sm:py-20">
         <div className="bg-white border border-slate-200/90 rounded-xl p-6 sm:p-8 space-y-6">
           <div className="w-11 h-11 rounded-lg bg-slate-100 text-slate-900 flex items-center justify-center">
             <Lock className="w-5 h-5" />
           </div>
 
-          <div className="space-y-1.5">
+          <div className="space-y-2">
             <h1 className="font-display text-xl sm:text-2xl font-bold text-slate-900">
-              Gestion du catalogue
+              Gestion du catalogue (Firebase)
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Cet espace est réservé au propriétaire de Mahfoud Digital Products pour ajouter, modifier ou masquer des produits.
+              Cet espace est protégé par Firebase Authentication et réservé au propriétaire de Mahfoud Digital Products. Tous les produits ajoutés ou modifiés ici sont sauvegardés dans Firebase Firestore et synchronisés sur Vercel.
             </p>
           </div>
 
-          <form onSubmit={handleUnlock} className="space-y-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="owner-access-code"
-                className="block text-xs font-semibold text-slate-800"
+          {currentUser && !isOwnerAdmin && (
+            <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800 space-y-2">
+              <p>
+                Connecté avec <strong>{currentUser.email}</strong>, qui n’est pas le compte administrateur autorisé.
+              </p>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="font-semibold underline cursor-pointer"
               >
-                Code d’accès propriétaire
-              </label>
-              <input
-                id="owner-access-code"
-                type="password"
-                required
-                value={accessCodeInput}
-                onChange={(e) => setAccessCodeInput(e.target.value)}
-                placeholder="Saisissez votre code d’accès"
-                className="w-full min-h-[46px] px-3.5 py-2 bg-[#FAF9F6] border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-700"
-              />
-              <p className="text-[11px] text-slate-500">
-                Code initial par défaut : <span className="font-mono-tabular font-semibold text-slate-700">MAHFOUD2026</span>
-              </p>
+                Se déconnecter
+              </button>
             </div>
+          )}
 
-            {authError && (
-              <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-                {authError}
-              </p>
-            )}
+          {authError && (
+            <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {authError}
+            </p>
+          )}
 
-            <button
-              type="submit"
-              className="w-full min-h-[46px] px-5 py-2.5 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-            >
-              Déverrouiller la gestion des produits
-            </button>
-          </form>
+          <button
+            type="button"
+            disabled={signingIn}
+            onClick={handleGoogleSignIn}
+            className="w-full min-h-[48px] px-5 py-3 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+          >
+            {signingIn
+              ? 'Connexion en cours...'
+              : 'Se connecter avec Google (Propriétaire)'}
+          </button>
 
           <div className="pt-4 border-t border-slate-100 text-center">
             <button
@@ -282,7 +278,7 @@ export function CatalogManagerPage({
     );
   }
 
-  // UNLOCKED VIEW: Simple, Mobile-First Product Catalog Manager
+  // UNLOCKED VIEW: Connected to Firebase Firestore as Verified Owner
   return (
     <div className="max-w-[1050px] mx-auto px-4 sm:px-6 py-8 sm:py-12 space-y-8">
       {/* Top Header Bar */}
@@ -290,13 +286,13 @@ export function CatalogManagerPage({
         <div className="space-y-1">
           <div className="flex items-center gap-2 text-xs font-medium text-blue-700">
             <Lock className="w-3.5 h-3.5" />
-            <span>Espace propriétaire protégé</span>
+            <span>Connecté à Firebase Firestore ({currentUser?.email})</span>
           </div>
           <h1 className="font-display text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
             Gestion des produits
           </h1>
           <p className="text-xs sm:text-sm text-slate-600">
-            Ajoutez, modifiez, affichez ou masquez vos produits numériques. Seuls les produits marqués comme « Visible » apparaissent dans la boutique publique.
+            Vos produits sont stockés de façon persistante dans Firebase Firestore et visibles en temps réel sur votre site déployé sur Vercel.
           </p>
         </div>
 
@@ -314,76 +310,25 @@ export function CatalogManagerPage({
 
           <button
             type="button"
-            onClick={() => setShowChangeCode((prev) => !prev)}
-            className="min-h-[44px] px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
-          >
-            <KeyRound className="w-4 h-4" />
-            <span>Code d’accès</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLock}
+            onClick={handleSignOut}
             className="min-h-[44px] px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
-            <span>Verrouiller</span>
+            <span>Déconnexion</span>
           </button>
         </div>
       </div>
 
-      {/* Optional Change Access Code Box */}
-      {showChangeCode && (
-        <form
-          onSubmit={handleSaveNewCode}
-          className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col sm:flex-row items-stretch sm:items-end gap-3"
-        >
-          <div className="flex-1 space-y-1">
-            <label htmlFor="new-owner-code" className="block text-xs font-semibold text-slate-800">
-              Définir un nouveau code d’accès propriétaire (min. 4 caractères)
-            </label>
-            <input
-              id="new-owner-code"
-              type="text"
-              required
-              minLength={4}
-              value={newOwnerCode}
-              onChange={(e) => setNewOwnerCode(e.target.value)}
-              placeholder="Nouveau code secret"
-              className="w-full min-h-[42px] px-3.5 py-2 bg-[#FAF9F6] border border-slate-200 rounded-lg text-sm text-slate-900 focus:bg-white focus:outline-none focus:border-blue-700"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="submit"
-              className="min-h-[42px] px-4 py-2 text-xs font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 cursor-pointer"
-            >
-              Enregistrer le code
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowChangeCode(false)}
-              className="min-h-[42px] px-3 py-2 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 cursor-pointer"
-            >
-              Annuler
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* Feedback Notifications */}
-      {(feedbackBanner || codeSavedMessage) && (
+      {feedbackBanner && (
         <div className="bg-blue-50 border border-blue-200 text-blue-900 rounded-xl px-4 py-3 text-xs sm:text-sm font-medium flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Check className="w-4 h-4 text-blue-700 shrink-0" />
-            <span>{feedbackBanner || codeSavedMessage}</span>
+            <span>{feedbackBanner}</span>
           </div>
           <button
             type="button"
-            onClick={() => {
-              setFeedbackBanner('');
-              setCodeSavedMessage('');
-            }}
+            onClick={() => setFeedbackBanner('')}
             className="text-blue-700 hover:text-blue-950 p-1 cursor-pointer"
           >
             <X className="w-4 h-4" />
@@ -411,7 +356,7 @@ export function CatalogManagerPage({
           </div>
 
           <form onSubmit={handleSubmitForm} className="space-y-6">
-            {/* 1. PHOTO DU PRODUIT (OBLIGATOIRE / TÉLÉVERSEMENT) */}
+            {/* 1. PHOTO DU PRODUIT (TÉLÉVERSEMENT) */}
             <div className="space-y-3">
               <label className="block text-xs font-semibold text-slate-900">
                 Photo du produit (utilisée sur la carte, le catalogue et la fiche détaillée)
@@ -600,7 +545,7 @@ export function CatalogManagerPage({
                 </span>
                 <span className="text-xs text-slate-600">
                   {form.visible
-                    ? 'Ce produit est visible par les visiteurs et peut être acheté.'
+                    ? 'Ce produit est visible par tous les visiteurs et peut être acheté.'
                     : 'Ce produit est masqué : il ne s’affiche pas dans la boutique publique.'}
                 </span>
               </div>
@@ -733,9 +678,12 @@ export function CatalogManagerPage({
               </button>
               <button
                 type="submit"
+                disabled={saving}
                 className="min-h-[46px] px-6 py-2.5 text-xs sm:text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
               >
-                {editingId === 'new'
+                {saving
+                  ? 'Enregistrement dans Firebase...'
+                  : editingId === 'new'
                   ? 'Enregistrer le produit'
                   : 'Enregistrer les modifications'}
               </button>
@@ -753,17 +701,20 @@ export function CatalogManagerPage({
             </h3>
             <p className="text-xs sm:text-sm text-red-900">
               Voulez-vous vraiment supprimer le produit «{' '}
-              <strong>{confirmDeleteProduct.name}</strong> » du catalogue ? Si vous souhaitez simplement le retirer temporairement de la boutique publique, utilisez plutôt le bouton « Masquer ».
+              <strong>{confirmDeleteProduct.name}</strong> » de Firebase Firestore ? Si vous souhaitez simplement le retirer temporairement de la boutique publique, utilisez plutôt le bouton « Masquer ».
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 const deletedName = confirmDeleteProduct.name;
-                onDeleteProduct(confirmDeleteProduct.id);
+                const targetId = confirmDeleteProduct.id;
                 setConfirmDeleteProduct(null);
-                setFeedbackBanner(`Le produit « ${deletedName} » a été supprimé.`);
+                await onDeleteProduct(targetId);
+                setFeedbackBanner(
+                  `Le produit « ${deletedName} » a été supprimé de Firebase Firestore.`
+                );
                 setTimeout(() => setFeedbackBanner(''), 4000);
               }}
               className="min-h-[42px] px-4 py-2 text-xs sm:text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors cursor-pointer"
@@ -877,7 +828,7 @@ export function CatalogManagerPage({
                     </div>
                   </div>
 
-                  {/* Action Buttons (Mobile friendly) */}
+                  {/* Action Buttons */}
                   <div className="w-full md:w-auto flex flex-wrap items-center gap-2 pt-3 md:pt-0 border-t md:border-t-0 border-slate-100 shrink-0">
                     <button
                       type="button"
@@ -913,7 +864,7 @@ export function CatalogManagerPage({
                       className="min-h-[40px] px-3 py-2 text-xs font-medium text-red-700 bg-red-50 border border-red-200/80 rounded-lg hover:bg-red-100 transition-colors inline-flex items-center justify-center gap-1 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      <span className=" sm:inline">Supprimer</span>
+                      <span className="sm:inline">Supprimer</span>
                     </button>
                   </div>
                 </div>

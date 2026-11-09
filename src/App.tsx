@@ -61,6 +61,9 @@ export default function App() {
   const {
     allProducts,
     visibleProducts,
+    currentUser,
+    isAuthReady,
+    isOwnerAdmin,
     addProduct,
     updateProduct,
     toggleProductVisibility,
@@ -230,6 +233,9 @@ export default function App() {
         {currentPage === 'manage' ? (
           <CatalogManagerPage
             products={allProducts}
+            currentUser={currentUser}
+            isAuthReady={isAuthReady}
+            isOwnerAdmin={isOwnerAdmin}
             onAddProduct={addProduct}
             onUpdateProduct={updateProduct}
             onToggleVisibility={toggleProductVisibility}

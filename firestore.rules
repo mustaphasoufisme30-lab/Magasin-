@@ -1,0 +1,162 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Pillar 0: Global Safety Net (Default-Deny Catch-All)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Global Primitives
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Bootstrapped Verified Admin (Zero DB reads so it is safe inside allow list)
+    function isAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'mustaphasoufisme@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    // Validation Blueprint for Product Entity (21 strict keys)
+    function isValidProduct(data) {
+      return data.keys().hasAll([
+          'id',
+          'slug',
+          'name',
+          'category',
+          'categoryLabel',
+          'price',
+          'currency',
+          'formattedPrice',
+          'payhipUrl',
+          'image',
+          'imageAlt',
+          'shortDescription',
+          'fullDescription',
+          'features',
+          'format',
+          'compatibility',
+          'popular',
+          'visible',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'slug',
+          'name',
+          'category',
+          'categoryLabel',
+          'price',
+          'currency',
+          'formattedPrice',
+          'payhipUrl',
+          'image',
+          'imageAlt',
+          'shortDescription',
+          'fullDescription',
+          'features',
+          'format',
+          'compatibility',
+          'popular',
+          'visible',
+          'ownerId',
+          'createdAt',
+          'updatedAt'
+        ])
+        && isValidId(data.id)
+        && isValidId(data.slug)
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 200
+        && data.category is string && data.category.size() <= 40
+        && data.category in ['applications', 'ebooks', 'pdf', 'programmation', 'education', 'outils']
+        && data.categoryLabel is string && data.categoryLabel.size() >= 1 && data.categoryLabel.size() <= 100
+        && (data.price is int || data.price is float) && data.price >= 0 && data.price <= 100000
+        && data.currency is string && data.currency.size() <= 10
+        && data.currency in ['USD', 'EUR', 'GBP', 'CAD', 'MAD', 'DZD']
+        && data.formattedPrice is string && data.formattedPrice.size() >= 1 && data.formattedPrice.size() <= 50
+        && data.payhipUrl is string && data.payhipUrl.size() >= 8 && data.payhipUrl.size() <= 500
+        && data.image is string && data.image.size() <= 900000
+        && data.imageAlt is string && data.imageAlt.size() >= 1 && data.imageAlt.size() <= 250
+        && data.shortDescription is string && data.shortDescription.size() <= 600
+        && data.fullDescription is list && data.fullDescription.size() <= 30
+        && (data.fullDescription.size() == 0 || (data.fullDescription[0] is string && data.fullDescription[0].size() <= 2000))
+        && data.features is list && data.features.size() <= 30
+        && (data.features.size() == 0 || (data.features[0] is string && data.features[0].size() <= 500))
+        && data.format is string && data.format.size() <= 200
+        && data.compatibility is list && data.compatibility.size() <= 20
+        && (data.compatibility.size() == 0 || (data.compatibility[0] is string && data.compatibility[0].size() <= 300))
+        && data.popular is bool
+        && data.visible is bool
+        && data.ownerId is string && data.ownerId.size() >= 1 && data.ownerId.size() <= 128
+        && data.ownerId == request.auth.uid
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /products/{productId} {
+      // Public visitors can read visible products; verified admin can read all products
+      allow get: if isValidId(productId) && (existing().visible == true || isAdmin());
+      allow list: if existing().visible == true || isAdmin();
+
+      // Only verified admin can create a product with strict schema & server timestamps
+      allow create: if isAdmin()
+        && isValidId(productId)
+        && isValidProduct(incoming())
+        && incoming().id == productId
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      // Action-Based Update Pattern with immutable identity/creation fields
+      allow update: if isAdmin()
+        && isValidId(productId)
+        && isValidProduct(incoming())
+        && incoming().id == existing().id
+        && incoming().slug == existing().slug
+        && incoming().ownerId == existing().ownerId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          // Action 1: Quick Visibility Toggle
+          incoming().diff(existing()).affectedKeys().hasOnly(['visible', 'updatedAt'])
+          ||
+          // Action 2: Full Product Details Update
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'name',
+            'category',
+            'categoryLabel',
+            'price',
+            'currency',
+            'formattedPrice',
+            'payhipUrl',
+            'image',
+            'imageAlt',
+            'shortDescription',
+            'fullDescription',
+            'features',
+            'format',
+            'compatibility',
+            'popular',
+            'visible',
+            'updatedAt'
+          ])
+        );
+
+      // Only verified admin can delete a product
+      allow delete: if isAdmin() && isValidId(productId);
+    }
+  }
+}
