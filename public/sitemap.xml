@@ -1,49 +1,49 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://magasin-eight.vercel.app/</loc>
+    <loc>https://laboutique.cfd/</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=products</loc>
+    <loc>https://laboutique.cfd/?page=products</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?product=convertisseur-pdf-to-kpf</loc>
+    <loc>https://laboutique.cfd/?product=convertisseur-pdf-to-kpf</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=about</loc>
+    <loc>https://laboutique.cfd/?page=about</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=contact</loc>
+    <loc>https://laboutique.cfd/?page=contact</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=privacy</loc>
+    <loc>https://laboutique.cfd/?page=privacy</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=terms</loc>
+    <loc>https://laboutique.cfd/?page=terms</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://magasin-eight.vercel.app/?page=refund</loc>
+    <loc>https://laboutique.cfd/?page=refund</loc>
     <lastmod>2026-11-09</lastmod>
     <changefreq>yearly</changefreq>
     <priority>0.4</priority>

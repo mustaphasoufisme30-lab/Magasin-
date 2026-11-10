@@ -178,6 +178,7 @@ export function SEOHead({
             '@id': `${baseDomain}/#organization`,
             name: SITE_CONFIG.name,
             url: `${baseDomain}/`,
+            logo: `${baseDomain}${SITE_CONFIG.logoUrl}`,
             email: SITE_CONFIG.contactEmail,
             description: SITE_CONFIG.shortIntro,
           },

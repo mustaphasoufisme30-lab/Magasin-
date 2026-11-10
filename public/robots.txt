@@ -1,5 +1,6 @@
 User-agent: *
 Allow: /
+Allow: /ads.txt
 Disallow: /*?page=manage
 
-Sitemap: https://magasin-eight.vercel.app/sitemap.xml
+Sitemap: https://laboutique.cfd/sitemap.xml

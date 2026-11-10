@@ -10,8 +10,8 @@ export const SITE_CONFIG = {
     'Applications Android, ebooks, PDF pratiques, outils de programmation et ressources éducatives conçus pour aller à l’essentiel.',
   shortIntro:
     'Une sélection rigoureuse de produits numériques utiles, accessibles immédiatement après paiement sécurisé via Payhip, sans création de compte obligatoire.',
-  domain: 'https://magasin-eight.vercel.app',
-  defaultOgImage: 'https://magasin-eight.vercel.app/og-image.jpg',
+  domain: 'https://laboutique.cfd',
+  defaultOgImage: 'https://laboutique.cfd/og-image.jpg',
   payhipStoreUrl: 'https://payhip.com/b/8cbQk',
   contactEmail: 'contact@mahfouddigital.com',
   supportHours: 'Réponse sous 24h ouvrées (Lundi – Samedi)',
