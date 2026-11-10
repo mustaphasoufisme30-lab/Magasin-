@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
-import { CATEGORIES, CategoryId, DigitalProduct } from '../data/products';
+import { CategoryId, CategoryItem, DigitalProduct } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { PageRoute } from '../components/Navbar';
 
 interface ProductsPageProps {
   products: DigitalProduct[];
+  categories: CategoryItem[];
   initialCategory: CategoryId;
   onSelectCategory: (category: CategoryId) => void;
   onSelectProduct: (slug: string) => void;
@@ -16,6 +17,7 @@ type SortOption = 'popular' | 'price-asc' | 'price-desc';
 
 export function ProductsPage({
   products,
+  categories,
   initialCategory,
   onSelectCategory,
   onSelectProduct,
@@ -25,7 +27,7 @@ export function ProductsPage({
   const [sortBy, setSortBy] = useState<SortOption>('popular');
 
   const activeCategoryObj =
-    CATEGORIES.find((c) => c.id === initialCategory) || CATEGORIES[0];
+    categories.find((c) => c.id === initialCategory) || categories[0];
 
   const filteredProducts = products
     .filter((product) => {
@@ -124,7 +126,7 @@ export function ProductsPage({
           aria-label="Catégories de produits"
           className="flex items-center gap-1.5 overflow-x-auto pb-2"
         >
-          {CATEGORIES.map((category) => {
+          {categories.map((category) => {
             const isSelected = initialCategory === category.id;
             const count =
               category.id === 'all'

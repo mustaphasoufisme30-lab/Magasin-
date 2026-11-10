@@ -28,8 +28,9 @@
         "category": {
           "type": "string",
           "description": "Identifiant de la catégorie du produit",
-          "enum": ["applications", "ebooks", "pdf", "programmation", "education", "outils"],
-          "maxLength": 40
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
         },
         "categoryLabel": {
           "type": "string",
@@ -140,6 +141,68 @@
         "createdAt",
         "updatedAt"
       ]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Une catégorie de produits numériques du catalogue Mahfoud Digital Products.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Identifiant unique de la catégorie",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "label": {
+          "type": "string",
+          "description": "Nom complet de la catégorie",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "shortLabel": {
+          "type": "string",
+          "description": "Nom court affiché dans les onglets de filtre",
+          "minLength": 1,
+          "maxLength": 50
+        },
+        "description": {
+          "type": "string",
+          "description": "Description de la catégorie",
+          "minLength": 1,
+          "maxLength": 400
+        },
+        "order": {
+          "type": "number",
+          "description": "Ordre d'affichage de la catégorie"
+        },
+        "ownerId": {
+          "type": "string",
+          "description": "UID Firebase de l'administrateur propriétaire",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur de création"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Horodatage serveur de dernière modification"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "shortLabel",
+        "description",
+        "order",
+        "ownerId",
+        "createdAt",
+        "updatedAt"
+      ]
     }
   },
   "firestore": {
@@ -148,6 +211,12 @@
         "$ref": "#/entities/Product"
       },
       "description": "Collection principale des produits numériques de Mahfoud Digital Products."
+    },
+    "/categories/{categoryId}": {
+      "schema": {
+        "$ref": "#/entities/Category"
+      },
+      "description": "Collection des catégories de produits gérées par l'administrateur."
     }
   }
 }

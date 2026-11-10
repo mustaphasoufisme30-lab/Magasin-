@@ -1,13 +1,14 @@
 import { SITE_CONFIG } from '../config/siteConfig';
-import { CATEGORIES, CategoryId } from '../data/products';
+import { CategoryId, CategoryItem } from '../data/products';
 import { PageRoute } from './Navbar';
 
 interface FooterProps {
+  categories: CategoryItem[];
   onNavigate: (page: PageRoute) => void;
   onSelectCategory: (categoryId: CategoryId) => void;
 }
 
-export function Footer({ onNavigate, onSelectCategory }: FooterProps) {
+export function Footer({ categories, onNavigate, onSelectCategory }: FooterProps) {
   const currentYear = new Date().getFullYear();
 
   return (
@@ -49,7 +50,7 @@ export function Footer({ onNavigate, onSelectCategory }: FooterProps) {
               Catégories de produits
             </h3>
             <ul className="space-y-2.5 text-sm">
-              {CATEGORIES.filter((c) => c.id !== 'all').map((cat) => (
+              {categories.filter((c) => c.id !== 'all').map((cat) => (
                 <li key={cat.id}>
                   <a
                     href={`/?page=products&category=${cat.id}`}

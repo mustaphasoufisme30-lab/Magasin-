@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { SITE_CONFIG } from './config/siteConfig';
-import { CATEGORIES, CategoryId, DigitalProduct } from './data/products';
+import { CategoryId, CategoryItem, DigitalProduct } from './data/products';
 import { useCatalog } from './hooks/useCatalog';
 import { Navbar, PageRoute } from './components/Navbar';
 import { Footer } from './components/Footer';
@@ -18,7 +18,10 @@ import { ContactPage } from './pages/ContactPage';
 import { LegalPage } from './pages/LegalPage';
 import { CatalogManagerPage } from './pages/CatalogManagerPage';
 
-function parseUrlState(allProducts: DigitalProduct[]): {
+function parseUrlState(
+  allProducts: DigitalProduct[],
+  categories: CategoryItem[]
+): {
   page: PageRoute;
   productSlug: string | null;
   category: CategoryId;
@@ -32,7 +35,7 @@ function parseUrlState(allProducts: DigitalProduct[]): {
   const categoryParam = params.get('category') as CategoryId | null;
 
   const validCategory =
-    categoryParam && CATEGORIES.some((c) => c.id === categoryParam)
+    categoryParam && categories.some((c) => c.id === categoryParam)
       ? categoryParam
       : 'all';
 
@@ -61,6 +64,7 @@ export default function App() {
   const {
     allProducts,
     visibleProducts,
+    categories,
     currentUser,
     isAuthReady,
     isOwnerAdmin,
@@ -68,9 +72,12 @@ export default function App() {
     updateProduct,
     toggleProductVisibility,
     deleteProduct,
+    addCategory,
+    updateCategory,
+    deleteCategory,
   } = useCatalog();
 
-  const initial = parseUrlState(allProducts);
+  const initial = parseUrlState(allProducts, categories);
   const [currentPage, setCurrentPage] = useState<PageRoute>(initial.page);
   const [activeProductSlug, setActiveProductSlug] = useState<string | null>(
     initial.productSlug
@@ -82,7 +89,7 @@ export default function App() {
   // Sync with browser back/forward buttons
   useEffect(() => {
     const onPopState = () => {
-      const next = parseUrlState(allProducts);
+      const next = parseUrlState(allProducts, categories);
       setCurrentPage(next.page);
       setActiveProductSlug(next.productSlug);
       setSelectedCategory(next.category);
@@ -90,7 +97,7 @@ export default function App() {
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [allProducts]);
+  }, [allProducts, categories]);
 
   const updateUrl = (
     page: PageRoute,
@@ -202,7 +209,7 @@ export default function App() {
       case 'manage':
         return {
           title: `Gestion du Catalogue – ${SITE_CONFIG.name}`,
-          description: 'Espace propriétaire de gestion des produits numériques.',
+          description: 'Espace propriétaire de gestion des produits numériques et catégories.',
           canonicalPath: '/?page=manage',
           products: visibleProducts,
           noindex: true,
@@ -234,6 +241,7 @@ export default function App() {
         {currentPage === 'manage' ? (
           <CatalogManagerPage
             products={allProducts}
+            categories={categories}
             currentUser={currentUser}
             isAuthReady={isAuthReady}
             isOwnerAdmin={isOwnerAdmin}
@@ -241,6 +249,9 @@ export default function App() {
             onUpdateProduct={updateProduct}
             onToggleVisibility={toggleProductVisibility}
             onDeleteProduct={deleteProduct}
+            onAddCategory={addCategory}
+            onUpdateCategory={updateCategory}
+            onDeleteCategory={deleteCategory}
             onNavigate={handleNavigate}
             onSelectProduct={handleSelectProduct}
           />
@@ -255,6 +266,7 @@ export default function App() {
         ) : currentPage === 'products' ? (
           <ProductsPage
             products={visibleProducts}
+            categories={categories}
             initialCategory={selectedCategory}
             onSelectCategory={handleSelectCategory}
             onSelectProduct={handleSelectProduct}
@@ -271,6 +283,7 @@ export default function App() {
         ) : (
           <HomePage
             products={visibleProducts}
+            categories={categories}
             onNavigate={handleNavigate}
             onSelectProduct={handleSelectProduct}
             onSelectCategory={handleSelectCategory}
@@ -279,6 +292,7 @@ export default function App() {
       </main>
 
       <Footer
+        categories={categories}
         onNavigate={handleNavigate}
         onSelectCategory={handleSelectCategory}
       />

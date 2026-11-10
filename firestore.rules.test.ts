@@ -1,6 +1,6 @@
 /**
  * Test runner specification verifying that all 12 "Dirty Dozen" payloads
- * return PERMISSION_DENIED against firestore.rules.
+ * return PERMISSION_DENIED against firestore.rules for both /products and /categories.
  */
 
 export interface DirtyDozenTestCase {
@@ -29,27 +29,27 @@ export const DIRTY_DOZEN_TESTS: DirtyDozenTestCase[] = [
   },
   {
     id: 2,
-    name: 'Non-Admin Authenticated Write',
+    name: 'Non-Admin Authenticated Category Write',
     operation: 'create',
-    path: '/products/convertisseur-pdf-to-kpf',
+    path: '/categories/applications',
     auth: { uid: 'user-1', email: 'visitor@example.com', email_verified: true },
-    payload: { name: 'Hack' },
+    payload: { label: 'Hack' },
     expectedResult: 'PERMISSION_DENIED',
   },
   {
     id: 3,
-    name: 'Unverified Admin Email Spoof',
+    name: 'Unverified Admin Email Spoof on Category',
     operation: 'create',
-    path: '/products/convertisseur-pdf-to-kpf',
+    path: '/categories/applications',
     auth: { uid: 'admin-1', email: 'mustaphasoufisme@gmail.com', email_verified: false },
-    payload: { name: 'Spoofed' },
+    payload: { label: 'Spoofed' },
     expectedResult: 'PERMISSION_DENIED',
   },
   {
     id: 4,
-    name: 'Shadow Field Injection on Create',
+    name: 'Shadow Field Injection on Category Create',
     operation: 'create',
-    path: '/products/convertisseur-pdf-to-kpf',
+    path: '/categories/applications',
     auth: { uid: 'admin-1', email: 'mustaphasoufisme@gmail.com', email_verified: true },
     payload: { ghostField: true },
     expectedResult: 'PERMISSION_DENIED',
@@ -65,9 +65,9 @@ export const DIRTY_DOZEN_TESTS: DirtyDozenTestCase[] = [
   },
   {
     id: 6,
-    name: 'ID Mismatch Poisoning',
+    name: 'ID Mismatch Poisoning on Category',
     operation: 'create',
-    path: '/products/convertisseur-pdf-to-kpf',
+    path: '/categories/applications',
     auth: { uid: 'admin-1', email: 'mustaphasoufisme@gmail.com', email_verified: true },
     payload: { id: 'different-id' },
     expectedResult: 'PERMISSION_DENIED',
@@ -110,9 +110,9 @@ export const DIRTY_DOZEN_TESTS: DirtyDozenTestCase[] = [
   },
   {
     id: 11,
-    name: 'Immutable Field Mutation on Update',
+    name: 'Immutable Field Mutation on Category Update',
     operation: 'update',
-    path: '/products/convertisseur-pdf-to-kpf',
+    path: '/categories/applications',
     auth: { uid: 'admin-1', email: 'mustaphasoufisme@gmail.com', email_verified: true },
     payload: { ownerId: 'mutated-owner' },
     expectedResult: 'PERMISSION_DENIED',

@@ -12,11 +12,14 @@ import {
   where,
 } from 'firebase/firestore';
 import {
+  ALL_CATEGORY_ITEM,
   CategoryId,
+  CategoryItem,
   createSlug,
   DigitalProduct,
   formatProductPrice,
   getCategoryLabel,
+  INITIAL_CATEGORIES,
   INITIAL_PRODUCTS,
 } from '../data/products';
 import {
@@ -28,10 +31,11 @@ import {
 } from '../lib/firebase';
 
 const INITIAL_SEEDED_KEY = 'mahfoud_firestore_initial_seeded_v1';
+const INITIAL_CATEGORIES_SEEDED_KEY = 'mahfoud_firestore_categories_seeded_v1';
 
 export interface ProductFormInput {
   name: string;
-  category: Exclude<CategoryId, 'all'>;
+  category: CategoryId;
   price: number;
   currency: string;
   payhipUrl: string;
@@ -42,6 +46,12 @@ export interface ProductFormInput {
   format?: string;
   compatibilityText?: string;
   visible: boolean;
+}
+
+export interface CategoryFormInput {
+  label: string;
+  shortLabel: string;
+  description: string;
 }
 
 /**
@@ -109,7 +119,7 @@ function mapDocToDigitalProduct(data: Record<string, unknown>): DigitalProduct {
     id: String(data.id || ''),
     slug: String(data.slug || data.id || ''),
     name: String(data.name || ''),
-    category: (data.category as Exclude<CategoryId, 'all'>) || 'applications',
+    category: String(data.category || 'applications'),
     categoryLabel: String(data.categoryLabel || 'Applications'),
     price,
     currency,
@@ -130,12 +140,25 @@ function mapDocToDigitalProduct(data: Record<string, unknown>): DigitalProduct {
   };
 }
 
+function mapDocToCategoryItem(data: Record<string, unknown>): CategoryItem {
+  const order = typeof data.order === 'number' ? data.order : Number(data.order) || 0;
+  return {
+    id: String(data.id || ''),
+    label: String(data.label || ''),
+    shortLabel: String(data.shortLabel || data.label || ''),
+    description: String(data.description || ''),
+    order,
+  };
+}
+
 export function useCatalog() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [firestoreProducts, setFirestoreProducts] = useState<DigitalProduct[] | null>(null);
+  const [firestoreCategories, setFirestoreCategories] = useState<CategoryItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const seedingRef = useRef(false);
+  const seedingCategoriesRef = useRef(false);
 
   const isOwnerAdmin =
     Boolean(currentUser) &&
@@ -156,7 +179,6 @@ export function useCatalog() {
     if (!isAuthReady) return;
 
     const productsRef = collection(db, 'products');
-    // Verified owner receives all products (visible & hidden); public visitors receive visible products
     const targetQuery = isOwnerAdmin
       ? productsRef
       : query(productsRef, where('visible', '==', true));
@@ -168,7 +190,6 @@ export function useCatalog() {
           mapDocToDigitalProduct(d.data() as Record<string, unknown>)
         );
 
-        // Auto-seed the initial real product into Firestore on first owner login if collection is empty
         const alreadySeeded =
           typeof window !== 'undefined' &&
           window.localStorage.getItem(INITIAL_SEEDED_KEY) === 'true';
@@ -233,7 +254,72 @@ export function useCatalog() {
     return () => unsubscribe();
   }, [isAuthReady, isOwnerAdmin]);
 
-  // If Firestore has not been seeded yet by the owner's first login, display INITIAL_PRODUCTS
+  // 2b. Real-time Firestore listener on /categories
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    const categoriesRef = collection(db, 'categories');
+    const categoriesQuery = query(categoriesRef, where('order', '>=', 0));
+
+    const unsubscribe = onSnapshot(
+      categoriesQuery,
+      async (snapshot) => {
+        const docs = snapshot.docs
+          .map((d) => mapDocToCategoryItem(d.data() as Record<string, unknown>))
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+        const alreadySeededCats =
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(INITIAL_CATEGORIES_SEEDED_KEY) === 'true';
+
+        if (
+          isOwnerAdmin &&
+          auth.currentUser &&
+          docs.length === 0 &&
+          !alreadySeededCats &&
+          !seedingCategoriesRef.current
+        ) {
+          seedingCategoriesRef.current = true;
+          try {
+            for (let i = 0; i < INITIAL_CATEGORIES.length; i++) {
+              const cat = INITIAL_CATEGORIES[i];
+              await setDoc(doc(db, 'categories', cat.id), {
+                id: cat.id,
+                label: cat.label.slice(0, 100),
+                shortLabel: cat.shortLabel.slice(0, 50),
+                description: cat.description.slice(0, 400),
+                order: cat.order ?? i,
+                ownerId: auth.currentUser.uid,
+                createdAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              });
+            }
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(INITIAL_CATEGORIES_SEEDED_KEY, 'true');
+            }
+          } catch (error) {
+            handleFirestoreError(error, OperationType.CREATE, 'categories');
+          } finally {
+            seedingCategoriesRef.current = false;
+          }
+          return;
+        }
+
+        if (docs.length > 0 && typeof window !== 'undefined') {
+          window.localStorage.setItem(INITIAL_CATEGORIES_SEEDED_KEY, 'true');
+        }
+
+        setFirestoreCategories(docs);
+      },
+      (error) => {
+        handleFirestoreError(error, OperationType.LIST, 'categories');
+      }
+    );
+
+    return () => unsubscribe();
+  }, [isAuthReady, isOwnerAdmin]);
+
+  // Resolve products
   const hasBeenSeeded =
     typeof window !== 'undefined' &&
     window.localStorage.getItem(INITIAL_SEEDED_KEY) === 'true';
@@ -244,6 +330,42 @@ export function useCatalog() {
       : INITIAL_PRODUCTS;
 
   const visibleProducts = allProducts.filter((p) => p.visible !== false);
+
+  // Resolve categories (always prepend 'all')
+  const hasCategoriesBeenSeeded =
+    typeof window !== 'undefined' &&
+    window.localStorage.getItem(INITIAL_CATEGORIES_SEEDED_KEY) === 'true';
+
+  const activeCategoryItems: CategoryItem[] =
+    firestoreCategories !== null &&
+    (firestoreCategories.length > 0 || hasCategoriesBeenSeeded)
+      ? firestoreCategories
+      : INITIAL_CATEGORIES;
+
+  const categories: CategoryItem[] = [ALL_CATEGORY_ITEM, ...activeCategoryItems];
+
+  // Helper to ensure initial categories exist in Firestore before mutating if not yet seeded
+  const ensureInitialCategoriesInFirestore = async () => {
+    if (!auth.currentUser) return;
+    if (firestoreCategories !== null && firestoreCategories.length === 0 && !hasCategoriesBeenSeeded) {
+      for (let i = 0; i < INITIAL_CATEGORIES.length; i++) {
+        const cat = INITIAL_CATEGORIES[i];
+        await setDoc(doc(db, 'categories', cat.id), {
+          id: cat.id,
+          label: cat.label.slice(0, 100),
+          shortLabel: cat.shortLabel.slice(0, 50),
+          description: cat.description.slice(0, 400),
+          order: cat.order ?? i,
+          ownerId: auth.currentUser.uid,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(INITIAL_CATEGORIES_SEEDED_KEY, 'true');
+      }
+    }
+  };
 
   // Helper to ensure the initial product exists in Firestore before mutating it if not yet seeded
   const ensureInitialProductInFirestore = async (targetId: string) => {
@@ -282,82 +404,88 @@ export function useCatalog() {
   };
 
   // 3. Add a new product to Firestore
-  const addProduct = useCallback(async (input: ProductFormInput): Promise<DigitalProduct> => {
-    if (!auth.currentUser) {
-      throw new Error('Vous devez être connecté avec le compte propriétaire.');
-    }
-
-    const baseSlug = (createSlug(input.name) || 'produit').slice(0, 90);
-    const uniqueId = `${baseSlug}-${Date.now().toString(36)}`.replace(/[^a-zA-Z0-9_-]/g, '');
-
-    const safeName = input.name.trim().slice(0, 200);
-    const safePrice = Math.min(Math.max(Number(input.price) || 0, 0), 100000);
-    const safeCurrency = input.currency || 'USD';
-    const safeFormattedPrice = formatProductPrice(safePrice, safeCurrency).slice(0, 50);
-    const safePayhipUrl = input.payhipUrl.trim().slice(0, 500);
-    const safeImage = (input.image?.trim() || '').slice(0, 900000);
-    const safeShortDesc = (input.shortDescription?.trim() || '').slice(0, 600);
-    const safeFormat = (input.format?.trim() || '').slice(0, 200);
-
-    const fullDescription = (input.fullDescriptionText || '')
-      .split('\n')
-      .map((line) => line.trim().slice(0, 2000))
-      .filter(Boolean)
-      .slice(0, 30);
-
-    const features = (input.featuresText || '')
-      .split('\n')
-      .map((line) => line.trim().slice(0, 500))
-      .filter(Boolean)
-      .slice(0, 30);
-
-    const compatibility = (input.compatibilityText || '')
-      .split('\n')
-      .map((line) => line.trim().slice(0, 300))
-      .filter(Boolean)
-      .slice(0, 20);
-
-    const firestorePayload = {
-      id: uniqueId,
-      slug: uniqueId,
-      name: safeName,
-      category: input.category,
-      categoryLabel: getCategoryLabel(input.category).slice(0, 100),
-      price: safePrice,
-      currency: safeCurrency,
-      formattedPrice: safeFormattedPrice,
-      payhipUrl: safePayhipUrl,
-      image: safeImage,
-      imageAlt: safeName.slice(0, 250),
-      shortDescription: safeShortDesc,
-      fullDescription,
-      features,
-      format: safeFormat,
-      compatibility,
-      popular: true,
-      visible: Boolean(input.visible),
-      ownerId: auth.currentUser.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    };
-
-    try {
-      const alreadySeeded =
-        typeof window !== 'undefined' &&
-        window.localStorage.getItem(INITIAL_SEEDED_KEY) === 'true';
-      if (!alreadySeeded) {
-        await ensureInitialProductInFirestore(INITIAL_PRODUCTS[0].id);
+  const addProduct = useCallback(
+    async (input: ProductFormInput): Promise<DigitalProduct> => {
+      if (!auth.currentUser) {
+        throw new Error('Vous devez être connecté avec le compte propriétaire.');
       }
-      await setDoc(doc(db, 'products', uniqueId), firestorePayload);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(INITIAL_SEEDED_KEY, 'true');
-      }
-    } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, `products/${uniqueId}`);
-    }
 
-    return mapDocToDigitalProduct(firestorePayload);
-  }, [firestoreProducts]);
+      const baseSlug = (createSlug(input.name) || 'produit').slice(0, 90);
+      const uniqueId = `${baseSlug}-${Date.now().toString(36)}`.replace(
+        /[^a-zA-Z0-9_-]/g,
+        ''
+      );
+
+      const safeName = input.name.trim().slice(0, 200);
+      const safePrice = Math.min(Math.max(Number(input.price) || 0, 0), 100000);
+      const safeCurrency = input.currency || 'USD';
+      const safeFormattedPrice = formatProductPrice(safePrice, safeCurrency).slice(0, 50);
+      const safePayhipUrl = input.payhipUrl.trim().slice(0, 500);
+      const safeImage = (input.image?.trim() || '').slice(0, 900000);
+      const safeShortDesc = (input.shortDescription?.trim() || '').slice(0, 600);
+      const safeFormat = (input.format?.trim() || '').slice(0, 200);
+
+      const fullDescription = (input.fullDescriptionText || '')
+        .split('\n')
+        .map((line) => line.trim().slice(0, 2000))
+        .filter(Boolean)
+        .slice(0, 30);
+
+      const features = (input.featuresText || '')
+        .split('\n')
+        .map((line) => line.trim().slice(0, 500))
+        .filter(Boolean)
+        .slice(0, 30);
+
+      const compatibility = (input.compatibilityText || '')
+        .split('\n')
+        .map((line) => line.trim().slice(0, 300))
+        .filter(Boolean)
+        .slice(0, 20);
+
+      const firestorePayload = {
+        id: uniqueId,
+        slug: uniqueId,
+        name: safeName,
+        category: input.category,
+        categoryLabel: getCategoryLabel(input.category, categories).slice(0, 100),
+        price: safePrice,
+        currency: safeCurrency,
+        formattedPrice: safeFormattedPrice,
+        payhipUrl: safePayhipUrl,
+        image: safeImage,
+        imageAlt: safeName.slice(0, 250),
+        shortDescription: safeShortDesc,
+        fullDescription,
+        features,
+        format: safeFormat,
+        compatibility,
+        popular: true,
+        visible: Boolean(input.visible),
+        ownerId: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      try {
+        const alreadySeeded =
+          typeof window !== 'undefined' &&
+          window.localStorage.getItem(INITIAL_SEEDED_KEY) === 'true';
+        if (!alreadySeeded) {
+          await ensureInitialProductInFirestore(INITIAL_PRODUCTS[0].id);
+        }
+        await setDoc(doc(db, 'products', uniqueId), firestorePayload);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(INITIAL_SEEDED_KEY, 'true');
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `products/${uniqueId}`);
+      }
+
+      return mapDocToDigitalProduct(firestorePayload);
+    },
+    [firestoreProducts, categories]
+  );
 
   // 4. Update an existing product in Firestore
   const updateProduct = useCallback(
@@ -398,7 +526,7 @@ export function useCatalog() {
         await updateDoc(doc(db, 'products', id), {
           name: safeName,
           category: input.category,
-          categoryLabel: getCategoryLabel(input.category).slice(0, 100),
+          categoryLabel: getCategoryLabel(input.category, categories).slice(0, 100),
           price: safePrice,
           currency: safeCurrency,
           formattedPrice: safeFormattedPrice,
@@ -418,7 +546,7 @@ export function useCatalog() {
         handleFirestoreError(error, OperationType.UPDATE, `products/${id}`);
       }
     },
-    [firestoreProducts]
+    [firestoreProducts, categories]
   );
 
   // 5. Toggle product visibility in Firestore
@@ -455,9 +583,157 @@ export function useCatalog() {
     }
   }, []);
 
+  // 7. Add a new category to Firestore
+  const addCategory = useCallback(
+    async (input: CategoryFormInput): Promise<CategoryItem> => {
+      if (!auth.currentUser) {
+        throw new Error('Vous devez être connecté avec le compte propriétaire.');
+      }
+
+      const safeLabel = input.label.trim().slice(0, 100);
+      const safeShortLabel = (input.shortLabel.trim() || safeLabel).slice(0, 50);
+      const safeDescription = (
+        input.description.trim() ||
+        `Produits numériques de la catégorie ${safeLabel}.`
+      ).slice(0, 400);
+
+      if (!safeLabel) {
+        throw new Error('Veuillez saisir le nom de la catégorie.');
+      }
+
+      let baseId = createSlug(safeShortLabel || safeLabel).slice(0, 50);
+      if (!baseId || baseId === 'all') {
+        baseId = `categorie-${Date.now().toString(36)}`;
+      }
+      let uniqueCatId = baseId.replace(/[^a-zA-Z0-9_-]/g, '');
+      if (activeCategoryItems.some((c) => c.id === uniqueCatId)) {
+        uniqueCatId = `${baseId.slice(0, 45)}-${Date.now().toString(36)}`.replace(
+          /[^a-zA-Z0-9_-]/g,
+          ''
+        );
+      }
+
+      const nextOrder = Math.min(
+        activeCategoryItems.length > 0
+          ? Math.max(...activeCategoryItems.map((c, idx) => c.order ?? idx)) + 1
+          : 0,
+        1000
+      );
+
+      const payload = {
+        id: uniqueCatId,
+        label: safeLabel,
+        shortLabel: safeShortLabel,
+        description: safeDescription,
+        order: nextOrder,
+        ownerId: auth.currentUser.uid,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      };
+
+      try {
+        await ensureInitialCategoriesInFirestore();
+        await setDoc(doc(db, 'categories', uniqueCatId), payload);
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(INITIAL_CATEGORIES_SEEDED_KEY, 'true');
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.CREATE, `categories/${uniqueCatId}`);
+      }
+
+      return {
+        id: uniqueCatId,
+        label: safeLabel,
+        shortLabel: safeShortLabel,
+        description: safeDescription,
+        order: nextOrder,
+      };
+    },
+    [activeCategoryItems, firestoreCategories, hasCategoriesBeenSeeded]
+  );
+
+  // 8. Update an existing category in Firestore
+  const updateCategory = useCallback(
+    async (id: string, input: CategoryFormInput): Promise<void> => {
+      if (!auth.currentUser) {
+        throw new Error('Vous devez être connecté avec le compte propriétaire.');
+      }
+      if (id === 'all') {
+        throw new Error('La catégorie globale « Tous » ne peut pas être modifiée.');
+      }
+
+      const safeLabel = input.label.trim().slice(0, 100);
+      const safeShortLabel = (input.shortLabel.trim() || safeLabel).slice(0, 50);
+      const safeDescription = (
+        input.description.trim() ||
+        `Produits numériques de la catégorie ${safeLabel}.`
+      ).slice(0, 400);
+
+      const existingCat = activeCategoryItems.find((c) => c.id === id);
+      const safeOrder = Math.min(Math.max(existingCat?.order ?? 0, 0), 1000);
+
+      try {
+        await ensureInitialCategoriesInFirestore();
+        await updateDoc(doc(db, 'categories', id), {
+          label: safeLabel,
+          shortLabel: safeShortLabel,
+          description: safeDescription,
+          order: safeOrder,
+          updatedAt: serverTimestamp(),
+        });
+
+        // Synchronize categoryLabel on any product using this category
+        const matchingProducts = allProducts.filter((p) => p.category === id);
+        for (const prod of matchingProducts) {
+          await ensureInitialProductInFirestore(prod.id);
+          await updateDoc(doc(db, 'products', prod.id), {
+            categoryLabel: safeShortLabel.slice(0, 100),
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.UPDATE, `categories/${id}`);
+      }
+    },
+    [activeCategoryItems, allProducts, firestoreCategories, firestoreProducts, hasCategoriesBeenSeeded]
+  );
+
+  // 9. Delete a category from Firestore
+  const deleteCategory = useCallback(
+    async (id: string): Promise<void> => {
+      if (!auth.currentUser) {
+        throw new Error('Vous devez être connecté avec le compte propriétaire.');
+      }
+      if (id === 'all') {
+        throw new Error('La catégorie globale « Tous » ne peut pas être supprimée.');
+      }
+
+      const usedByProducts = allProducts.filter((p) => p.category === id);
+      if (usedByProducts.length > 0) {
+        throw new Error(
+          `Impossible de supprimer cette catégorie car ${usedByProducts.length} produit(s) y sont rattachés (${usedByProducts
+            .map((p) => p.name)
+            .join(', ')}). Veuillez d’abord changer la catégorie de ces produits.`
+        );
+      }
+
+      try {
+        await ensureInitialCategoriesInFirestore();
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(INITIAL_CATEGORIES_SEEDED_KEY, 'true');
+        }
+        await deleteDoc(doc(db, 'categories', id));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.DELETE, `categories/${id}`);
+      }
+    },
+    [allProducts, firestoreCategories, hasCategoriesBeenSeeded]
+  );
+
   return {
     allProducts,
     visibleProducts,
+    categories,
     isLoading,
     currentUser,
     isAuthReady,
@@ -466,5 +742,8 @@ export function useCatalog() {
     updateProduct,
     toggleProductVisibility,
     deleteProduct,
+    addCategory,
+    updateCategory,
+    deleteCategory,
   };
 }

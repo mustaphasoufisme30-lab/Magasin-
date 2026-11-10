@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { ArrowRight, ArrowUpRight, Check, Download, FileText, Lock, Smartphone } from 'lucide-react';
 import { SITE_CONFIG } from '../config/siteConfig';
-import { CATEGORIES, CategoryId, DigitalProduct } from '../data/products';
+import { CategoryId, CategoryItem, DigitalProduct } from '../data/products';
 import { ProductCard } from '../components/ProductCard';
 import { PageRoute } from '../components/Navbar';
 
 interface HomePageProps {
   products: DigitalProduct[];
+  categories: CategoryItem[];
   onNavigate: (page: PageRoute) => void;
   onSelectProduct: (slug: string) => void;
   onSelectCategory: (category: CategoryId) => void;
@@ -14,6 +15,7 @@ interface HomePageProps {
 
 export function HomePage({
   products,
+  categories,
   onNavigate,
   onSelectProduct,
   onSelectCategory,
@@ -200,7 +202,7 @@ export function HomePage({
           aria-label="Filtrer les produits par catégorie"
           className="flex items-center gap-1.5 overflow-x-auto pb-3 mb-8 scrollbar-none"
         >
-          {CATEGORIES.map((category) => {
+          {categories.map((category) => {
             const isSelected = selectedCategory === category.id;
             const count =
               category.id === 'all'
@@ -268,7 +270,7 @@ export function HomePage({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {CATEGORIES.filter((c) => c.id !== 'all').map((cat, idx) => {
+            {categories.filter((c) => c.id !== 'all').map((cat, idx) => {
               const count = products.filter((p) => p.category === cat.id).length;
               return (
                 <button
@@ -279,7 +281,9 @@ export function HomePage({
                 >
                   <div className="space-y-2">
                     <div className="flex items-center justify-between text-xs text-slate-500">
-                      <span className="font-mono-tabular">0{idx + 1}</span>
+                      <span className="font-mono-tabular">
+                        {String(idx + 1).padStart(2, '0')}
+                      </span>
                       <span>
                         {count} {count > 1 ? 'produits disponibles' : 'produit disponible'}
                       </span>

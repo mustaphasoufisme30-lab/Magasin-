@@ -1,22 +1,16 @@
 /**
  * Structure centralisée des catégories et des produits numériques de Mahfoud Digital Products.
- * Contient uniquement les produits réels.
+ * Contient uniquement les produits réels et les catégories initiales par défaut.
  */
 
-export type CategoryId =
-  | 'all'
-  | 'applications'
-  | 'ebooks'
-  | 'pdf'
-  | 'programmation'
-  | 'education'
-  | 'outils';
+export type CategoryId = string;
 
 export interface CategoryItem {
   id: CategoryId;
   label: string;
   shortLabel: string;
   description: string;
+  order?: number;
 }
 
 export interface ProductFAQ {
@@ -30,7 +24,7 @@ export interface DigitalProduct {
   name: string;
   shortDescription?: string;
   fullDescription?: string[];
-  category: Exclude<CategoryId, 'all'>;
+  category: CategoryId;
   categoryLabel: string;
   price: number;
   currency: string;
@@ -83,9 +77,72 @@ export function formatProductPrice(price: number, currency: string): string {
   }
 }
 
-export function getCategoryLabel(categoryId: Exclude<CategoryId, 'all'>): string {
-  const found = CATEGORIES.find((c) => c.id === categoryId);
-  return found ? found.shortLabel : 'Applications';
+export const ALL_CATEGORY_ITEM: CategoryItem = {
+  id: 'all',
+  label: 'Tous les produits',
+  shortLabel: 'Tous',
+  description: 'Catalogue des produits numériques disponibles sur Mahfoud Digital Products.',
+  order: -1,
+};
+
+export const INITIAL_CATEGORIES: CategoryItem[] = [
+  {
+    id: 'applications',
+    label: 'Applications',
+    shortLabel: 'Applications',
+    description: 'Applications et logiciels numériques disponibles en téléchargement via Payhip.',
+    order: 0,
+  },
+  {
+    id: 'ebooks',
+    label: 'Livres numériques / Ebooks',
+    shortLabel: 'Ebooks',
+    description: 'Livres numériques et ouvrages téléchargeables.',
+    order: 1,
+  },
+  {
+    id: 'pdf',
+    label: 'PDF',
+    shortLabel: 'PDF',
+    description: 'Documents et ressources au format PDF.',
+    order: 2,
+  },
+  {
+    id: 'programmation',
+    label: 'Outils de programmation',
+    shortLabel: 'Programmation',
+    description: 'Outils et ressources pour la programmation.',
+    order: 3,
+  },
+  {
+    id: 'education',
+    label: 'Produits éducatifs',
+    shortLabel: 'Éducation',
+    description: 'Supports et produits éducatifs numériques.',
+    order: 4,
+  },
+  {
+    id: 'outils',
+    label: 'Modèles & Ressources numériques',
+    shortLabel: 'Ressources',
+    description: 'Modèles et ressources numériques.',
+    order: 5,
+  },
+];
+
+export const CATEGORIES: CategoryItem[] = [
+  ALL_CATEGORY_ITEM,
+  ...INITIAL_CATEGORIES,
+];
+
+export function getCategoryLabel(
+  categoryId: CategoryId,
+  customCategories: CategoryItem[] = CATEGORIES
+): string {
+  const found =
+    customCategories.find((c) => c.id === categoryId) ||
+    CATEGORIES.find((c) => c.id === categoryId);
+  return found ? found.shortLabel : categoryId;
 }
 
 export function createSlug(text: string): string {
@@ -96,51 +153,6 @@ export function createSlug(text: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/(^-|-$)/g, '');
 }
-
-export const CATEGORIES: CategoryItem[] = [
-  {
-    id: 'all',
-    label: 'Tous les produits',
-    shortLabel: 'Tous',
-    description: 'Catalogue des produits numériques disponibles sur Mahfoud Digital Products.',
-  },
-  {
-    id: 'applications',
-    label: 'Applications',
-    shortLabel: 'Applications',
-    description: 'Applications et logiciels numériques disponibles en téléchargement via Payhip.',
-  },
-  {
-    id: 'ebooks',
-    label: 'Livres numériques / Ebooks',
-    shortLabel: 'Ebooks',
-    description: 'Livres numériques et ouvrages téléchargeables.',
-  },
-  {
-    id: 'pdf',
-    label: 'PDF',
-    shortLabel: 'PDF',
-    description: 'Documents et ressources au format PDF.',
-  },
-  {
-    id: 'programmation',
-    label: 'Outils de programmation',
-    shortLabel: 'Programmation',
-    description: 'Outils et ressources pour la programmation.',
-  },
-  {
-    id: 'education',
-    label: 'Produits éducatifs',
-    shortLabel: 'Éducation',
-    description: 'Supports et produits éducatifs numériques.',
-  },
-  {
-    id: 'outils',
-    label: 'Modèles & Ressources numériques',
-    shortLabel: 'Ressources',
-    description: 'Modèles et ressources numériques.',
-  },
-];
 
 /**
  * Premier produit réel officiel (ne jamais supprimer ni altérer par défaut)
