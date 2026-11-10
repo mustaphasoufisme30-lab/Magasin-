@@ -36,16 +36,24 @@ export function Navbar({ currentPage, activeProductSlug, onNavigate }: NavbarPro
   return (
     <header className="sticky top-0 z-40 bg-[#FAF9F6]/95 backdrop-blur-md border-b border-slate-200/80">
       <div className="max-w-[1200px] mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 h-16">
-        {/* Zone 1: Brand Title Wordmark (Single text element, one line) */}
+        {/* Zone 1: Brand Logo */}
         <a
           href="/?page=home"
           onClick={(e) => {
             e.preventDefault();
             handleNavClick('home');
           }}
-          className="font-display text-base sm:text-lg font-bold tracking-tight text-slate-900 whitespace-nowrap shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+          aria-label={SITE_CONFIG.name}
+          className="inline-flex items-center shrink-0 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
         >
-          {SITE_CONFIG.name}
+          <img
+            src={SITE_CONFIG.logoUrl}
+            alt={SITE_CONFIG.name}
+            width={180}
+            height={48}
+            decoding="async"
+            className="h-10 sm:h-11 w-auto object-contain rounded-md"
+          />
         </a>
 
         {/* Zone 2: 4 concise single-line text navigation links */}

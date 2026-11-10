@@ -157,7 +157,7 @@ export const INITIAL_PRODUCTS: DigitalProduct[] = [
     formattedPrice: '5 $',
     payhipUrl: 'https://payhip.com/b/8cbQk',
     image: '/src/assets/images/prod_dev_starter_kit_1794160075314.jpg',
-    imageAlt: 'Convertisseur PDF to KPF',
+    imageAlt: 'Application Convertisseur PDF to KPF disponible sur Mahfoud Digital Products',
     popular: true,
     visible: true,
   },

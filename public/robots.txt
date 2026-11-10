@@ -1,4 +1,5 @@
 User-agent: *
 Allow: /
+Disallow: /*?page=manage
 
-Sitemap: /sitemap.xml
+Sitemap: https://magasin-eight.vercel.app/sitemap.xml

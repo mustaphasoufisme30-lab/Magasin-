@@ -90,6 +90,10 @@ export function HomePage({
                       <img
                         src={featuredProduct.image}
                         alt={featuredProduct.imageAlt}
+                        width={800}
+                        height={600}
+                        fetchPriority="high"
+                        decoding="async"
                         referrerPolicy="no-referrer"
                         onError={() => setHeroImgError(true)}
                         className="w-full h-full object-cover"

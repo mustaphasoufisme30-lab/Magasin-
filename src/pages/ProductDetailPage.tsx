@@ -68,6 +68,10 @@ export function ProductDetailPage({
                   <img
                     src={product.image}
                     alt={product.imageAlt}
+                    width={800}
+                    height={600}
+                    fetchPriority="high"
+                    decoding="async"
                     referrerPolicy="no-referrer"
                     onError={() => setImgError(true)}
                     className="w-full h-full object-cover"

@@ -45,9 +45,9 @@ export function Footer({ onNavigate, onSelectCategory }: FooterProps) {
 
           {/* Column 2: Catégories */}
           <div className="lg:col-span-3 space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
               Catégories de produits
-            </h2>
+            </h3>
             <ul className="space-y-2.5 text-sm">
               {CATEGORIES.filter((c) => c.id !== 'all').map((cat) => (
                 <li key={cat.id}>
@@ -68,9 +68,9 @@ export function Footer({ onNavigate, onSelectCategory }: FooterProps) {
 
           {/* Column 3: Navigation */}
           <div className="lg:col-span-2 space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
               Navigation
-            </h2>
+            </h3>
             <ul className="space-y-2.5 text-sm">
               <li>
                 <a
@@ -135,9 +135,9 @@ export function Footer({ onNavigate, onSelectCategory }: FooterProps) {
 
           {/* Column 4: Informations légales (AdSense & Google Ads compliance) */}
           <div className="lg:col-span-3 space-y-3">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-900">
               Informations légales
-            </h2>
+            </h3>
             <ul className="space-y-2.5 text-sm">
               <li>
                 <a

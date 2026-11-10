@@ -205,12 +205,13 @@ export default function App() {
           description: 'Espace propriétaire de gestion des produits numériques.',
           canonicalPath: '/?page=manage',
           products: visibleProducts,
+          noindex: true,
         };
       default:
         return {
           title: `${SITE_CONFIG.name} – Applications, Ebooks, PDF & Outils Numériques`,
           description:
-            'Découvrez Mahfoud Digital Products : applications, logiciels, ebooks, PDF pratiques, outils de programmation et ressources éducatives en téléchargement immédiat.',
+            'Découvrez Mahfoud Digital Products : applications utiles comme le Convertisseur PDF to KPF, ebooks, guides PDF et outils de programmation en téléchargement immédiat via Payhip.',
           canonicalPath: '/',
           products: visibleProducts,
         };

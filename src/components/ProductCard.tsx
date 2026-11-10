@@ -27,7 +27,10 @@ export function ProductCard({ product, onSelectProduct }: ProductCardProps) {
             <img
               src={product.image}
               alt={product.imageAlt}
+              width={800}
+              height={600}
               loading="lazy"
+              decoding="async"
               referrerPolicy="no-referrer"
               onError={() => setImageError(true)}
               className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
