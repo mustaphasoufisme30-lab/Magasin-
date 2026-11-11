@@ -23,11 +23,12 @@ import {
   INITIAL_PRODUCTS,
 } from '../data/products';
 import {
-  ADMIN_EMAIL,
   auth,
   db,
   handleFirestoreError,
+  isVerifiedOwnerEmail,
   OperationType,
+  resolveRedirectSignIn,
 } from '../lib/firebase';
 
 const INITIAL_SEEDED_KEY = 'mahfoud_firestore_initial_seeded_v1';
@@ -154,6 +155,7 @@ function mapDocToCategoryItem(data: Record<string, unknown>): CategoryItem {
 export function useCatalog() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [redirectAuthError, setRedirectAuthError] = useState<unknown>(null);
   const [firestoreProducts, setFirestoreProducts] = useState<DigitalProduct[] | null>(null);
   const [firestoreCategories, setFirestoreCategories] = useState<CategoryItem[] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -162,11 +164,15 @@ export function useCatalog() {
 
   const isOwnerAdmin =
     Boolean(currentUser) &&
-    currentUser?.email === ADMIN_EMAIL &&
+    isVerifiedOwnerEmail(currentUser?.email) &&
     currentUser?.emailVerified === true;
 
-  // 1. Track Firebase Auth state
+  // 1. Track Firebase Auth state & resolve any redirect login
   useEffect(() => {
+    resolveRedirectSignIn().catch((err) => {
+      setRedirectAuthError(err);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
       setIsAuthReady(true);
@@ -738,6 +744,7 @@ export function useCatalog() {
     currentUser,
     isAuthReady,
     isOwnerAdmin,
+    redirectAuthError,
     addProduct,
     updateProduct,
     toggleProductVisibility,

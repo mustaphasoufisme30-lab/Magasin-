@@ -56,7 +56,7 @@ export function Navbar({ currentPage, activeProductSlug, onNavigate }: NavbarPro
           />
         </a>
 
-        {/* Zone 2: 4 concise single-line text navigation links */}
+        {/* Zone 2: Navigation links */}
         <nav aria-label="Navigation principale" className="hidden md:flex items-center gap-7 text-sm font-medium">
           {navItems.map((item) => {
             const isActive =
@@ -79,6 +79,14 @@ export function Navbar({ currentPage, activeProductSlug, onNavigate }: NavbarPro
               </a>
             );
           })}
+          <a
+            href="https://mahfoud.xyz"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="py-1 whitespace-nowrap shrink-0 transition-colors border-b-2 text-slate-600 border-transparent hover:text-slate-900 hover:border-slate-300"
+          >
+            Blog Éducatif
+          </a>
         </nav>
 
         {/* Zone 3: 1 Primary Action + Mobile Menu Trigger */}
@@ -128,6 +136,15 @@ export function Navbar({ currentPage, activeProductSlug, onNavigate }: NavbarPro
                 </a>
               );
             })}
+            <a
+              href="https://mahfoud.xyz"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setMobileMenuOpen(false)}
+              className="flex items-center min-h-[46px] px-3 rounded-lg text-base font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
+            >
+              Blog Éducatif
+            </a>
             <div className="pt-3 mt-2 border-t border-slate-100">
               <button
                 type="button"

@@ -1,10 +1,13 @@
-import { ChangeEvent, FormEvent, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useRef, useState } from 'react';
 import { User } from 'firebase/auth';
 import {
+  AlertTriangle,
   ArrowLeft,
   ArrowUpRight,
   Check,
+  Copy,
   Edit3,
+  ExternalLink,
   Eye,
   EyeOff,
   FileText,
@@ -29,7 +32,18 @@ import {
   processUploadedProductPhoto,
   ProductFormInput,
 } from '../hooks/useCatalog';
-import { ADMIN_EMAIL, signInAsOwner, signOutOwner } from '../lib/firebase';
+import {
+  ADMIN_EMAIL,
+  FIREBASE_AUTH_PROVIDERS_URL,
+  FIREBASE_AUTH_SETTINGS_URL,
+  FIREBASE_PROJECT_ID,
+  isVerifiedOwnerEmail,
+  ParsedAuthError,
+  parseFirebaseAuthError,
+  signInAsOwner,
+  signInAsOwnerRedirect,
+  signOutOwner,
+} from '../lib/firebase';
 import { PageRoute } from '../components/Navbar';
 
 interface CatalogManagerPageProps {
@@ -38,6 +52,7 @@ interface CatalogManagerPageProps {
   currentUser: User | null;
   isAuthReady: boolean;
   isOwnerAdmin: boolean;
+  redirectAuthError?: unknown;
   onAddProduct: (input: ProductFormInput) => Promise<DigitalProduct>;
   onUpdateProduct: (id: string, input: ProductFormInput) => Promise<void>;
   onToggleVisibility: (id: string) => Promise<void>;
@@ -76,6 +91,7 @@ export function CatalogManagerPage({
   currentUser,
   isAuthReady,
   isOwnerAdmin,
+  redirectAuthError,
   onAddProduct,
   onUpdateProduct,
   onToggleVisibility,
@@ -86,8 +102,10 @@ export function CatalogManagerPage({
   onNavigate,
   onSelectProduct,
 }: CatalogManagerPageProps) {
+  const [parsedAuthError, setParsedAuthError] = useState<ParsedAuthError | null>(null);
   const [authError, setAuthError] = useState('');
   const [signingIn, setSigningIn] = useState(false);
+  const [copiedDomain, setCopiedDomain] = useState(false);
 
   // Active management tab ('products' | 'categories')
   const [activeSection, setActiveSection] = useState<'products' | 'categories'>('products');
@@ -119,24 +137,55 @@ export function CatalogManagerPage({
 
   const editableCategories = categories.filter((c) => c.id !== 'all');
 
+  useEffect(() => {
+    if (redirectAuthError) {
+      const parsed = parseFirebaseAuthError(redirectAuthError);
+      setParsedAuthError(parsed);
+      setAuthError(parsed.message);
+    }
+  }, [redirectAuthError]);
+
   const handleGoogleSignIn = async () => {
     setSigningIn(true);
     setAuthError('');
+    setParsedAuthError(null);
     try {
       const credential = await signInAsOwner();
-      if (credential.user.email !== ADMIN_EMAIL) {
+      if (!isVerifiedOwnerEmail(credential.user.email)) {
         setAuthError(
-          `Accès refusé : le compte ${credential.user.email} n’est pas le compte propriétaire autorisé.`
+          `Accès refusé : le compte ${credential.user.email} n’est pas le compte propriétaire autorisé (${ADMIN_EMAIL}).`
         );
       }
     } catch (err) {
-      setAuthError(
-        err instanceof Error
-          ? err.message
-          : 'Impossible de se connecter avec Google.'
-      );
+      const parsed = parseFirebaseAuthError(err);
+      setParsedAuthError(parsed);
+      setAuthError(parsed.message);
     } finally {
       setSigningIn(false);
+    }
+  };
+
+  const handleGoogleRedirectSignIn = async () => {
+    setSigningIn(true);
+    setAuthError('');
+    setParsedAuthError(null);
+    try {
+      await signInAsOwnerRedirect();
+    } catch (err) {
+      const parsed = parseFirebaseAuthError(err);
+      setParsedAuthError(parsed);
+      setAuthError(parsed.message);
+      setSigningIn(false);
+    }
+  };
+
+  const handleCopyHostname = async (hostname: string) => {
+    try {
+      await navigator.clipboard.writeText(hostname);
+      setCopiedDomain(true);
+      setTimeout(() => setCopiedDomain(false), 3000);
+    } catch {
+      // Fallback ignored
     }
   };
 
@@ -316,10 +365,13 @@ export function CatalogManagerPage({
     );
   }
 
+  const currentDomain =
+    typeof window !== 'undefined' ? window.location.hostname : 'laboutique.cfd';
+
   // LOCKED VIEW: Protected Owner Authentication via Firebase Google Login
   if (!isOwnerAdmin) {
     return (
-      <div className="max-w-[480px] mx-auto px-4 sm:px-6 py-14 sm:py-20">
+      <div className="max-w-[540px] mx-auto px-4 sm:px-6 py-12 sm:py-16">
         <div className="bg-white border border-slate-200/90 rounded-xl p-6 sm:p-8 space-y-6">
           <div className="w-11 h-11 rounded-lg bg-slate-100 text-slate-900 flex items-center justify-center">
             <Lock className="w-5 h-5" />
@@ -330,41 +382,154 @@ export function CatalogManagerPage({
               Gestion du catalogue (Firebase)
             </h1>
             <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-              Cet espace est protégé par Firebase Authentication et réservé au propriétaire de Mahfoud Digital Products. Tous les produits et catégories ajoutés ou modifiés ici sont sauvegardés dans Firebase Firestore.
+              Connectez-vous avec votre compte Google administrateur (<strong>{ADMIN_EMAIL}</strong>) pour gérer vos produits et vos catégories dans Firebase Firestore.
             </p>
           </div>
 
           {currentUser && !isOwnerAdmin && (
-            <div className="p-3.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-800 space-y-2">
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-950 space-y-2.5">
               <p>
-                Connecté avec <strong>{currentUser.email}</strong>, qui n’est pas le compte administrateur autorisé.
+                Vous êtes actuellement connecté avec <strong>{currentUser.email}</strong>, qui n’est pas le compte propriétaire autorisé (<strong>{ADMIN_EMAIL}</strong>).
               </p>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="font-semibold underline cursor-pointer"
+                className="min-h-[36px] px-3.5 py-1.5 rounded-lg bg-amber-900 text-white font-semibold hover:bg-amber-800 transition-colors cursor-pointer"
               >
-                Se déconnecter
+                Changer de compte Google
               </button>
             </div>
           )}
 
+          {/* Detailed Error Diagnostic Box */}
           {authError && (
-            <p className="text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {authError}
-            </p>
+            <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-xs text-red-900 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-red-700 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-red-950">
+                    Impossible de finaliser la connexion Google
+                  </p>
+                  <p className="leading-relaxed">{authError}</p>
+                </div>
+              </div>
+
+              {/* Specific Resolution for auth/unauthorized-domain (laboutique.cfd / vercel.app) */}
+              {parsedAuthError?.isUnauthorizedDomain && (
+                <div className="pt-2 border-t border-red-200/80 space-y-2.5 text-slate-800 bg-white p-3.5 rounded-lg border">
+                  <p className="font-semibold text-slate-900">
+                    Comment autoriser votre domaine en 30 secondes :
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1.5 text-xs text-slate-700">
+                    <li>
+                      Copiez votre nom de domaine actuel :{' '}
+                      <code className="px-1.5 py-0.5 bg-slate-100 rounded font-mono-tabular font-semibold text-slate-900">
+                        {parsedAuthError.currentHostname}
+                      </code>
+                    </li>
+                    <li>
+                      Ouvrez les paramètres <strong>Authentication &gt; Settings &gt; Domaines autorisés</strong> du projet Firebase (<strong>{FIREBASE_PROJECT_ID}</strong>).
+                    </li>
+                    <li>
+                      Cliquez sur <strong>Ajouter un domaine</strong>, collez{' '}
+                      <strong>{parsedAuthError.currentHostname}</strong> (ainsi que{' '}
+                      <strong>laboutique.cfd</strong>), puis validez.
+                    </li>
+                  </ol>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyHostname(parsedAuthError.currentHostname)}
+                      className="min-h-[36px] px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-900 font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                    >
+                      {copiedDomain ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-700" />
+                          <span>Domaine copié !</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copier « {parsedAuthError.currentHostname} »</span>
+                        </>
+                      )}
+                    </button>
+
+                    <a
+                      href={FIREBASE_AUTH_SETTINGS_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="min-h-[36px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold inline-flex items-center gap-1.5"
+                    >
+                      <span>Ouvrir Firebase Auth Settings</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Specific Resolution for auth/operation-not-allowed */}
+              {parsedAuthError?.isOperationNotAllowed && (
+                <div className="pt-2 border-t border-red-200/80 space-y-2 text-slate-800 bg-white p-3.5 rounded-lg border">
+                  <p className="text-xs text-slate-700">
+                    Activez le fournisseur <strong>Google</strong> dans la console Firebase Authentication :
+                  </p>
+                  <a
+                    href={FIREBASE_AUTH_PROVIDERS_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-h-[36px] px-3 py-1.5 rounded-lg bg-blue-700 hover:bg-blue-800 text-white font-semibold inline-flex items-center gap-1.5"
+                  >
+                    <span>Activer Google Sign-In dans Firebase</span>
+                    <ArrowUpRight className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
           )}
 
-          <button
-            type="button"
-            disabled={signingIn}
-            onClick={handleGoogleSignIn}
-            className="w-full min-h-[48px] px-5 py-3 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
-          >
-            {signingIn
-              ? 'Connexion en cours...'
-              : 'Se connecter avec Google (Propriétaire)'}
-          </button>
+          {/* Primary Popup Login Button + Secondary Redirect Login Button */}
+          <div className="space-y-3">
+            <button
+              type="button"
+              disabled={signingIn}
+              onClick={handleGoogleSignIn}
+              className="w-full min-h-[48px] px-5 py-3 text-sm font-semibold text-white bg-slate-900 rounded-lg hover:bg-blue-700 transition-colors cursor-pointer"
+            >
+              {signingIn
+                ? 'Connexion en cours...'
+                : 'Se connecter avec Google (Fenêtre Popup)'}
+            </button>
+
+            <button
+              type="button"
+              disabled={signingIn}
+              onClick={handleGoogleRedirectSignIn}
+              className="w-full min-h-[44px] px-4 py-2.5 text-xs sm:text-sm font-semibold text-slate-800 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 transition-colors inline-flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Connexion par redirection (si popup bloquée sur mobile)</span>
+            </button>
+          </div>
+
+          {/* Domain & Project Helper Note */}
+          <div className="p-3.5 rounded-lg bg-[#FAF9F6] border border-slate-200/80 text-[11px] text-slate-600 space-y-1.5">
+            <p className="font-semibold text-slate-800">
+              Note pour votre domaine personnalisé ({currentDomain}) :
+            </p>
+            <p className="leading-relaxed">
+              Si vous accédez à cette page depuis <strong>laboutique.cfd</strong> ou Vercel, assurez-vous que <strong>{currentDomain}</strong> figure dans les{' '}
+              <a
+                href={FIREBASE_AUTH_SETTINGS_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-700 underline hover:text-slate-900"
+              >
+                domaines autorisés Firebase
+              </a>
+              .
+            </p>
+          </div>
 
           <div className="pt-4 border-t border-slate-100 text-center">
             <button

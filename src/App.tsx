@@ -68,6 +68,7 @@ export default function App() {
     currentUser,
     isAuthReady,
     isOwnerAdmin,
+    redirectAuthError,
     addProduct,
     updateProduct,
     toggleProductVisibility,
@@ -245,6 +246,7 @@ export default function App() {
             currentUser={currentUser}
             isAuthReady={isAuthReady}
             isOwnerAdmin={isOwnerAdmin}
+            redirectAuthError={redirectAuthError}
             onAddProduct={addProduct}
             onUpdateProduct={updateProduct}
             onToggleVisibility={toggleProductVisibility}

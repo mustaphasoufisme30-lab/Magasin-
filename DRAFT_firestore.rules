@@ -26,7 +26,8 @@ service cloud.firestore {
     // Bootstrapped Verified Admin (Zero DB reads so it is safe inside allow list)
     function isAdmin() {
       return isSignedIn()
-        && request.auth.token.email == 'mustaphasoufisme@gmail.com'
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() == 'mustaphasoufisme@gmail.com'
         && request.auth.token.email_verified == true;
     }
 
